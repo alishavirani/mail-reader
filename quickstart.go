@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -89,98 +90,75 @@ func main() {
 	if err != nil {
 		log.Fatalf("Unable to retrieve labels: %v", err)
 	}
+	fmt.Println("listing lists ==>", r)
 	if len(r.Labels) == 0 {
 		log.Println("No labels found.")
 		return
 	}
 	// fmt.Println("Labels:")
 	// for _, l := range r.Labels {
-	// 	fmt.Printf("- %s\n", l.Name)
+	// 	fmt.Println("- %s\n", l.Name, l.MessagesUnread, l.Id)
 	// }
 
 	req := srv.Users.Messages.List(user).Q("from:av.alisha99@gmail.com,label:unread")
 
 	res, err := req.Do()
-
 	if err != nil {
 		fmt.Println("Error in fetching message list")
 		return
 	}
 
-	// fmt.Println("Printing res!!!!!!!!", res.Messages)
+	// fmt.Println("printing unread messages!!!", *res)
 
-	// for _, msg := range res.Messages {
-	// id := res.Messages[0].Id
-	// fmt.Println("Printing id", id)
+	for i, _ := range res.Messages {
+		id := res.Messages[i].Id
+		// fmt.Println("Printing id", id)
 
-	singleMsg := srv.Users.Messages.Get(user, res.Messages[0].Id).Format("full")
-	// fmt.Println("Printing single msg???", singleMsg)
+		singleMsg := srv.Users.Messages.Get(user, id).Format("full")
 
-	message, err := singleMsg.Do()
-	if err != nil {
-		log.Panic("Err in getting msg, in do: ", err)
-	}
-	fmt.Println("Printing single msg do call", message)
-
-	// fmt.Println("Printting message payload: ", message.Payload.Parts)
-
-	for _, part := range message.Payload.Parts {
-		req := srv.Users.Messages.Attachments.Get(user, message.Id, part.Body.AttachmentId)
-		fmt.Println("Printing attachment data!!!", req)
-
-		attachment, err := req.Do()
+		message, err := singleMsg.Do()
 		if err != nil {
-			log.Panic("Error in finding attachment data do!", err)
+			log.Panic("Err in getting msg, in do: ", err)
 		}
-		fmt.Println("Printing do call of attachment data: ", attachment)
+		// fmt.Println("Printing single msg", message)
+
+		// fmt.Println("Printting message payload parts: ", message.Payload.Parts)
+
+		//i <
+		for i := 1; i < len(message.Payload.Parts); i++ {
+			fmt.Println("---", message.Payload.Parts[i])
+
+			fmt.Println("---", user)
+			fmt.Println("---", message.Id)
+			fmt.Println("---", message.Payload.Parts[i].PartId)
+			fmt.Println("---", message.Payload.Parts[i].Body.AttachmentId)
+			fmt.Println("-------END------")
+
+			attachment, err := srv.Users.Messages.Attachments.Get(user, message.Id, message.Payload.Parts[i].Body.AttachmentId).Do()
+			if err != nil {
+				log.Panic("Error in finding attachment data do!", err)
+			}
+			// fmt.Println("Printing attachment: ", attachment)
+
+			decoded, err := base64.URLEncoding.DecodeString(attachment.Data)
+			if err != nil {
+				log.Panic("Error in decoding attachment data do!", err)
+			}
+
+			f, err := os.Create(message.Payload.Parts[i].Filename)
+			if err != nil {
+				panic(err)
+			}
+			defer f.Close()
+
+			if _, err := f.Write(decoded); err != nil {
+				panic(err)
+			}
+			if err := f.Sync(); err != nil {
+				panic(err)
+			}
+			//parse email attachment, check headers
+
+		}
 	}
-
-	// }
-
-	// for _, msg := range res.Messages {
-	// 	// id := res.Messages[0].Id
-	// 	// fmt.Println("Printing id", id)
-
-	// 	singleMsg := srv.Users.Messages.Get(user, msg.Id).Format("full")
-	// 	// fmt.Println("Printing single msg???", singleMsg)
-
-	// 	message, err := singleMsg.Do()
-	// 	if err != nil {
-	// 		log.Panic("Err in getting msg, in do: ", err)
-	// 	}
-	// 	fmt.Println("Printing single msg do call", message)
-
-	// 	// fmt.Println("Printting message payload: ", message.Payload.Parts)
-
-	// 	for _, part := range message.Payload.Parts {
-	// 		req := srv.Users.Messages.Attachments.Get(user, message.Id, part.Body.AttachmentId)
-	// 		fmt.Println("Printing attachment data!!!", req)
-
-	// 		attachment, err := req.Do()
-	// 		if err != nil {
-	// 			log.Panic("Error in finding attachment data do!", err)
-	// 		}
-	// 		fmt.Println("Printing do call of attachment data: ", attachment)
-	// 	}
-
-	// }
-
-	// for _, m := range res.Messages {
-	// 	// id := res.Messages[0].Id
-	// 	msg, _ := srv.Users.Messages.Get(user, m.Id).Format("full").Do()
-
-	// 	for _, part := range msg.Payload.Parts {
-
-	// 		attach, _ := srv.Users.Messages.Attachments.Get(user, m.Id, part.Body.AttachmentId).Do()
-	// 		fmt.Println("Attached data??", attach.Data)
-
-	// 		decoded, err := base64.URLEncoding.DecodeString(attach.Data)
-	// 		if err != nil {
-	// 			fmt.Println("error in decoding data==", err)
-	// 			return
-	// 		}
-	// 		fmt.Println("Decoded???", decoded)
-	// 	}
-	// }
-
 }
